@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, html, dcc, Input, Output, dash_table
+from dash import Dash, html, dcc, Input, Output, State, dash_table
 import dash_bootstrap_components as dbc
 import glob
 import os
@@ -15,7 +15,7 @@ import uuid
 
 # App configuration
 external_stylesheets = [dbc.themes.FLATLY]
-app = Dash(__name__, external_stylesheets=external_stylesheets)
+app = Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
 app.title = "The Blind Spot — Gender Equality Transparency"
 
 app.index_string = """
@@ -168,6 +168,116 @@ app.index_string = """
             .dash-table-container .dash-spreadsheet-container table td { background: #fff; border-top: 1px solid #eef1f6 !important; border-bottom: 1px solid #eef1f6 !important; }
             .dash-table-container .dash-spreadsheet-container table tr:hover td { background: rgba(15,118,110,0.05); }
             .footer-note{ text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-top: 30px; }
+            
+            /* Chatbot Animations */
+            @keyframes slideInRight {
+                from {
+                    opacity: 0;
+                    transform: translateX(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            @keyframes slideInLeft {
+                from {
+                    opacity: 0;
+                    transform: translateX(-30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            @keyframes typing {
+                0%, 100% { opacity: 0.3; }
+                50% { opacity: 1; }
+            }
+            
+            .user-message {
+                animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            
+            .assistant-message {
+                animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            
+            .chat-message {
+                transition: all 0.3s ease;
+            }
+            
+            .chat-message:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+            }
+            
+            #chat-messages {
+                scroll-behavior: smooth;
+            }
+            
+            #chat-input {
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            }
+            
+            #chat-input:focus {
+                outline: none;
+                border-color: #0f766e !important;
+                box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1) !important;
+            }
+            
+            #chat-send-btn {
+                transition: all 0.2s ease;
+            }
+            
+            #chat-send-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+            }
+            
+            #chat-send-btn:active {
+                transform: translateY(0);
+            }
+            
+            .typing-indicator {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 12px 16px;
+                background-color: #ffffff;
+                border-radius: 12px;
+                border: 1px solid #e5e7eb;
+                max-width: 80px;
+            }
+            
+            .typing-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: #0f766e;
+                animation: typing 1.4s infinite;
+            }
+            
+            .typing-dot:nth-child(2) {
+                animation-delay: 0.2s;
+            }
+            
+            .typing-dot:nth-child(3) {
+                animation-delay: 0.4s;
+            }
         </style>
     </head>
     <body>
@@ -470,6 +580,7 @@ tabs = dcc.Tabs(id="main-tabs", value="tab-about", className="dash-tabs", childr
     
     dcc.Tab(label="Data Table", value="tab-data"),
     
+    dcc.Tab(label="💬 AI Chat", value="tab-chat"),
 ])
 # dcc.Tab(label="Category Impact", value="tab-cat-impact"),
 
@@ -1300,21 +1411,12 @@ def render_tab(tab, years, types, sectors, companies, severities, sortby):
             return html.Div("No weighted data to display.", style={"color": "#777", "padding": "20px"})
 
         cat_df = pd.DataFrame(records)
-        cat_df["share_of_missing"] = cat_df["missing_weight"] / total_missing_weight * 100 if total_missing_weight else 0
-        cat_df = cat_df.sort_values("rate_pct", ascending=False)
-
-        overall_rate = (total_missing_weight / total_possible * 100) if total_possible else 0
-        top_row = cat_df.iloc[0]
-
-        def card(title, value):
-            return dbc.Card(
-                dbc.CardBody([html.Div(title, className="metric-title"), html.Div(value, className="metric-value")]),
-                className="elegant-card"
-            )
-
+        
+        overall_rate = (total_missing_weight / total_possible * 100) if total_possible > 0 else 0
+        
+        top_row = cat_df.sort_values("rate_pct", ascending=True).iloc[0]
+        
         cards = dbc.Row([
-            dbc.Col(card("Weighted missing rate", f"{overall_rate:.1f}%"), md=3),
-            dbc.Col(card("Total missing weight", f"{total_missing_weight:.1f}"), md=3),
             dbc.Col(card("Top gap category", f"{top_row['category']} ({top_row['rate_pct']:.1f}%)"), md=3),
             dbc.Col(card("Categories covered", f"{len(cat_df)}"), md=3),
         ], className="mb-3")
@@ -1415,6 +1517,10 @@ def render_tab(tab, years, types, sectors, companies, severities, sortby):
         box.update_traces(marker_line_width=0, jitter=0.2)
         box = polish_figure(box, height=600, margin={"t": 70, "b": 120})
         return html.Div([cards, gap_text, dcc.Graph(figure=box, config={"displayModeBar": False})])
+
+    # TAB CHAT:
+    if tab == "tab-chat":
+        return chatbot_container
 
     return html.Div("Tab not implemented.", style={"color": "#777"})
 
@@ -1518,6 +1624,263 @@ def generate_and_download_report(n_clicks, years, types, sectors, companies, sev
 )
 def reset_filters(n):
     return ([], [], [], [], [], f"reset-{n}")
+
+# ---------------------
+# Chatbot callback
+# ---------------------
+@app.callback(
+    Output("chat-messages", "children"),
+    Output("conversation-store", "data"),
+    Output("chat-input", "value"),
+    Input("chat-send-btn", "n_clicks"),
+    Input("chat-input", "n_submit"),
+    State("chat-input", "value"),
+    State("conversation-store", "data"),
+    State("year-filter", "value"),
+    State("type-filter", "value"),
+    State("sector-filter", "value"),
+    State("company-filter", "value"),
+    State("severity-filter", "value"),
+    prevent_initial_call=True
+)
+def handle_chat(send_clicks, n_submit, user_input, conversation_history, 
+                years, types, sectors, companies, severities):
+    if not user_input or user_input.strip() == "":
+        return dash.no_update, dash.no_update, dash.no_update
+    
+    # Filter data based on current filters
+    df = companies_df.copy()
+    if years:
+        df = df[df["Year"].isin(years)]
+    if types:
+        df = df[df["Type"].isin(types)]
+    if sectors:
+        df = df[df["Sector"].isin(sectors)]
+    if companies:
+        df = df[df["Company"].isin(companies)]
+    if severities:
+        df = df[df["Severity"].isin(severities)]
+    
+    if df.empty:
+        error_msg = html.Div([
+            html.Div("⚠️ Nessun dato disponibile con i filtri correnti. Modifica i filtri per continuare.",
+                     style={
+                         "backgroundColor": "#fff3cd",
+                         "color": "#856404",
+                         "padding": "12px 16px",
+                         "borderRadius": "12px",
+                         "marginBottom": "12px",
+                         "border": "1px solid #ffeeba",
+                         "maxWidth": "80%"
+                     })
+        ])
+        return error_msg, conversation_history, ""
+    
+    # Initialize RAG system
+    rag = BlindSpotRAG()
+    
+    # Get AI response
+    try:
+        ai_response = rag.chat(df, kpi_df, conversation_history, user_input)
+        
+        # Update conversation history
+        new_history = conversation_history + [
+            {"role": "user", "content": user_input},
+            {"role": "assistant", "content": ai_response}
+        ]
+        
+        # Build chat UI - Initial message
+        chat_messages = [
+            html.Div([
+                html.Div("👋 Ciao! Sono Ada, l'assistente AI del progetto Blind Spot.", 
+                         className="assistant-message chat-message",
+                         style={
+                             "backgroundColor": "#ffffff",
+                             "padding": "12px 16px",
+                             "borderRadius": "12px",
+                             "marginBottom": "12px",
+                             "maxWidth": "80%",
+                             "border": "1px solid #e5e7eb",
+                             "boxShadow": "0 2px 4px rgba(0,0,0,0.05)"
+                         }),
+                html.Div("Posso aiutarti ad analizzare i dati sulla trasparenza di genere. Prova a chiedermi:", 
+                         className="assistant-message chat-message",
+                         style={
+                             "backgroundColor": "#ffffff",
+                             "padding": "12px 16px",
+                             "borderRadius": "12px",
+                             "marginBottom": "8px",
+                             "maxWidth": "80%",
+                             "border": "1px solid #e5e7eb",
+                             "boxShadow": "0 2px 4px rgba(0,0,0,0.05)"
+                         }),
+                html.Ul([
+                    html.Li("Qual è l'azienda più trasparente?"),
+                    html.Li("Come si comporta il settore tecnologico?"),
+                    html.Li("Ci sono stati miglioramenti nel tempo?"),
+                    html.Li("Quali KPI mancano più spesso?"),
+                ], style={"color": "#5b6475", "fontSize": "0.85rem", "marginLeft": "30px"})
+            ])
+        ]
+        
+        # Add conversation messages
+        for i in range(0, len(new_history), 2):
+            if i < len(new_history):
+                # User message
+                chat_messages.append(
+                    html.Div(new_history[i]["content"],
+                             className="user-message chat-message",
+                             style={
+                                 "backgroundColor": "#0f766e",
+                                 "color": "white",
+                                 "padding": "12px 16px",
+                                 "borderRadius": "12px",
+                                 "marginBottom": "12px",
+                                 "marginLeft": "auto",
+                                 "maxWidth": "80%",
+                                 "textAlign": "right",
+                                 "boxShadow": "0 2px 8px rgba(15, 118, 110, 0.2)"
+                             })
+                )
+            
+            if i + 1 < len(new_history):
+                # Assistant message
+                chat_messages.append(
+                    html.Div(
+                        dcc.Markdown(new_history[i + 1]["content"]),
+                        className="assistant-message chat-message",
+                        style={
+                            "backgroundColor": "#ffffff",
+                            "padding": "12px 16px",
+                            "borderRadius": "12px",
+                            "marginBottom": "12px",
+                            "maxWidth": "80%",
+                            "border": "1px solid #e5e7eb",
+                            "boxShadow": "0 2px 4px rgba(0,0,0,0.05)"
+                        }
+                    )
+                )
+        
+        return chat_messages, new_history, ""
+        
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        error_msg = html.Div([
+
+            html.Div(f"❌ Errore: {str(e)}",
+                     style={
+                         "backgroundColor": "#f8d7da",
+                         "color": "#721c24",
+                         "padding": "12px 16px",
+                         "borderRadius": "12px",
+                         "marginBottom": "12px",
+                         "border": "1px solid #f5c6cb",
+                         "maxWidth": "80%"
+                     })
+        ])
+        return error_msg, conversation_history, ""
+
+@app.callback(
+    Output("chat-send-btn", "className"),
+    Input("chat-send-btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def add_sending_animation(n_clicks):
+    if n_clicks and n_clicks > 0:
+        return "sending"
+    return ""
+
+# Chatbot UI
+chatbot_container = html.Div([
+    html.Div([
+        html.H5("💬 AI Assistant", style={"fontWeight": "700", "color": "#0f766e", "marginBottom": "12px"}),
+        html.P("Fai domande sui dati visualizzati. L'assistente risponderà in base ai filtri applicati.", 
+               style={"fontSize": "0.9rem", "color": "#5b6475", "marginBottom": "20px"}),
+    ]),
+    
+    # Chat messages container
+    html.Div(id="chat-messages", style={
+        "height": "500px",
+        "overflowY": "auto",
+        "backgroundColor": "#f8fafc",
+        "borderRadius": "12px",
+        "padding": "20px",
+        "marginBottom": "16px",
+        "border": "1px solid #e5e7eb"
+    }, children=[
+        html.Div([
+            html.Div("👋 Ciao! Sono l'assistente AI del progetto Blind Spot.", 
+                     className="assistant-message chat-message",
+                     style={
+                         "backgroundColor": "#ffffff",
+                         "padding": "12px 16px",
+                         "borderRadius": "12px",
+                         "marginBottom": "12px",
+                         "maxWidth": "80%",
+                         "border": "1px solid #e5e7eb",
+                         "boxShadow": "0 2px 4px rgba(0,0,0,0.05)"
+                     }),
+            html.Div("Posso aiutarti ad analizzare i dati sulla trasparenza di genere. Prova a chiedermi:", 
+                     className="assistant-message chat-message",
+                     style={
+                         "backgroundColor": "#ffffff",
+                         "padding": "12px 16px",
+                         "borderRadius": "12px",
+                         "marginBottom": "8px",
+                         "maxWidth": "80%",
+                         "border": "1px solid #e5e7eb",
+                         "boxShadow": "0 2px 4px rgba(0,0,0,0.05)"
+                     }),
+            html.Ul([
+                html.Li("Qual è l'azienda più trasparente?"),
+                html.Li("Come si comporta il settore tecnologico?"),
+                html.Li("Ci sono stati miglioramenti nel tempo?"),
+                html.Li("Quali KPI mancano più spesso?"),
+            ], style={"color": "#5b6475", "fontSize": "0.85rem", "marginLeft": "30px"})
+        ])
+    ]),
+    
+    # Input area
+    dbc.Row([
+        dbc.Col([
+            dcc.Input(
+                id="chat-input",
+                type="text",
+                placeholder="Scrivi la tua domanda...",
+                style={
+                    "width": "100%",
+                    "padding": "12px 16px",
+                    "borderRadius": "10px",
+                    "border": "1px solid #e5e7eb",
+                    "fontSize": "0.95rem"
+                },
+                n_submit=0
+            )
+        ], width=10),
+        dbc.Col([
+            dbc.Button(
+                "Invia",
+                id="chat-send-btn",
+                color="primary",
+                className="w-100",
+                style={"padding": "12px"}
+            )
+        ], width=2)
+    ]),
+    
+    # Hidden store for conversation history
+    dcc.Store(id="conversation-store", data=[]),
+    
+    # Loading indicator
+    dbc.Spinner(
+        html.Div(id="chat-loading", style={"display": "none"}),
+        color="success",
+        type="grow",
+        size="sm"
+    )
+], style={"padding": "20px"})
+
 
 # ---------------------
 # Server entrypoint

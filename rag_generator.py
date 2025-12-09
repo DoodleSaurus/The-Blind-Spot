@@ -67,9 +67,16 @@ class BlindSpotRAG:
         unique_companies = df['Company'].nunique() if 'Company' in df.columns else len(df)
         total_entries = len(df)
         
+        # Filter out entries with OSS = 0 (no DNF available)
+        df_with_data = df[df['Total_OSS_Score'] > 0] if 'Total_OSS_Score' in df.columns else df
+        entries_no_data = total_entries - len(df_with_data)
+        
         context_parts.append("=== DATASET SUMMARY ===")
         context_parts.append(f"Unique companies: {unique_companies}")
         context_parts.append(f"Total company-year entries analyzed: {total_entries}")
+        if entries_no_data > 0:
+            context_parts.append(f"⚠️ Entries with no DNF available (OSS=0): {entries_no_data}")
+            context_parts.append(f"Entries with DNF data: {len(df_with_data)}")
         
         # Add year distribution if available
         if "Year" in df.columns and df["Year"].nunique() > 0:
@@ -78,40 +85,45 @@ class BlindSpotRAG:
             for year, count in year_counts.items():
                 context_parts.append(f"  - Year {year}: {count} entries")
         
-        context_parts.append(f"\nAverage OSS Score: {df['Total_OSS_Score'].mean():.2f}")
-        context_parts.append(f"Median OSS Score: {df['Total_OSS_Score'].median():.2f}")
-        context_parts.append(f"Min OSS Score: {df['Total_OSS_Score'].min():.2f}")
-        context_parts.append(f"Max OSS Score: {df['Total_OSS_Score'].max():.2f}")
+        # Use df_with_data for statistics
+        if len(df_with_data) > 0:
+            context_parts.append(f"\nAverage OSS Score (excluding N/A): {df_with_data['Total_OSS_Score'].mean():.2f}")
+            context_parts.append(f"Median OSS Score (excluding N/A): {df_with_data['Total_OSS_Score'].median():.2f}")
+            context_parts.append(f"Min OSS Score: {df_with_data['Total_OSS_Score'].min():.2f}")
+            context_parts.append(f"Max OSS Score: {df_with_data['Total_OSS_Score'].max():.2f}")
         
         context_parts.append("\n=== SEVERITY DISTRIBUTION ===")
         severity_counts = df["Severity"].value_counts()
         for severity, count in severity_counts.items():
-            if severity != "N/A":
-                pct = (count / len(df) * 100)
+            pct = (count / len(df) * 100)
+            if severity == "N/A":
+                context_parts.append(f"{severity} (No DNF available): {count} entries ({pct:.1f}%)")
+            else:
                 context_parts.append(f"{severity}: {count} entries ({pct:.1f}%)")
         
         if "Sector" in df.columns and df["Sector"].nunique() > 0:
             context_parts.append("\n=== SECTOR DISTRIBUTION ===")
-            sector_stats = df.groupby("Sector")["Total_OSS_Score"].agg(['count', 'mean', 'min', 'max'])
+            sector_stats = df_with_data.groupby("Sector")["Total_OSS_Score"].agg(['count', 'mean', 'min', 'max']) if len(df_with_data) > 0 else pd.DataFrame()
             for sector, row in sector_stats.iterrows():
                 context_parts.append(f"{sector}: {int(row['count'])} entries, avg OSS: {row['mean']:.2f}")
         
         if "Type" in df.columns and df["Type"].nunique() > 0:
             context_parts.append("\n=== COMPANY TYPE DISTRIBUTION ===")
-            type_stats = df.groupby("Type")["Total_OSS_Score"].agg(['count', 'mean'])
+            type_stats = df_with_data.groupby("Type")["Total_OSS_Score"].agg(['count', 'mean']) if len(df_with_data) > 0 else pd.DataFrame()
             for comp_type, row in type_stats.iterrows():
                 context_parts.append(f"{comp_type}: {int(row['count'])} entries, avg OSS: {row['mean']:.2f}")
         
-        context_parts.append("\n=== TOP AND BOTTOM PERFORMERS ===")
-        context_parts.append("Most Transparent (Lowest OSS):")
-        for idx, row in df.nsmallest(3, 'Total_OSS_Score')[['Company', 'Total_OSS_Score', 'Severity', 'Year']].iterrows():
-            year_info = f" ({int(row['Year'])})" if 'Year' in row and pd.notna(row['Year']) else ""
-            context_parts.append(f"  - {row['Company']}{year_info}: {row['Total_OSS_Score']:.2f} ({row['Severity']})")
-        
-        context_parts.append("\nLeast Transparent (Highest OSS):")
-        for idx, row in df.nlargest(3, 'Total_OSS_Score')[['Company', 'Total_OSS_Score', 'Severity', 'Year']].iterrows():
-            year_info = f" ({int(row['Year'])})" if 'Year' in row and pd.notna(row['Year']) else ""
-            context_parts.append(f"  - {row['Company']}{year_info}: {row['Total_OSS_Score']:.2f} ({row['Severity']})")
+        if len(df_with_data) > 0:
+            context_parts.append("\n=== TOP AND BOTTOM PERFORMERS ===")
+            context_parts.append("Most Transparent (Lowest OSS - excluding companies with no DNF):")
+            for idx, row in df_with_data.nsmallest(3, 'Total_OSS_Score')[['Company', 'Total_OSS_Score', 'Severity', 'Year']].iterrows():
+                year_info = f" ({int(row['Year'])})" if 'Year' in row and pd.notna(row['Year']) else ""
+                context_parts.append(f"  - {row['Company']}{year_info}: {row['Total_OSS_Score']:.2f} ({row['Severity']})")
+            
+            context_parts.append("\nLeast Transparent (Highest OSS):")
+            for idx, row in df_with_data.nlargest(3, 'Total_OSS_Score')[['Company', 'Total_OSS_Score', 'Severity', 'Year']].iterrows():
+                year_info = f" ({int(row['Year'])})" if 'Year' in row and pd.notna(row['Year']) else ""
+                context_parts.append(f"  - {row['Company']}{year_info}: {row['Total_OSS_Score']:.2f} ({row['Severity']})")
         
         return "\n".join(context_parts)
     
@@ -597,6 +609,78 @@ End of Report
                 html_paragraphs.append(f'<p>{para.strip()}</p>')
         
         return '\n'.join(html_paragraphs)
+
+    def chat(self, df: pd.DataFrame, kpi_df: pd.DataFrame, conversation_history: List[Dict], 
+             user_message: str) -> str:
+        """
+        Chat with the AI assistant about the data.
+        
+        Args:
+            df: Filtered companies dataframe
+            kpi_df: KPI definitions dataframe
+            conversation_history: List of previous messages [{"role": "user/assistant", "content": "..."}]
+            user_message: The user's new message
+            
+        Returns:
+            Assistant's response
+        """
+        # Build context from current data
+        context = self._build_context(df, kpi_df)
+        
+        # Build system message with context
+        system_message = f"""You are an AI assistant specialized in gender equality transparency analysis. 
+You help users understand data from "The Blind Spot" project, which tracks gender equality KPI disclosure in corporate reports.
+
+CURRENT DATA CONTEXT:
+{context}
+
+KEY CONCEPTS:
+- OSS (Omission Severity Score): Higher = less transparent (range 0-185)
+- **IMPORTANT**: OSS = 0 or Severity = "N/A" means the company's DNF (Non-Financial Declaration) is NOT AVAILABLE, not that they are transparent
+- Only companies with OSS > 0 have available DNF data and can be analyzed for transparency
+- Severity Levels (for companies WITH DNF):
+  * Trasparente (1-31): Minimal omissions, excellent transparency
+  * Bassa (32-62): Low omission level, good transparency
+  * Moderata (63-93): Moderate omissions
+  * Grave (94-124): Severe omissions
+  * Critica (125-155): Critical omissions
+  * Estrema (156-185): Extreme omissions
+- KPI Categories: Board & Governance, Management, Pay Equity, STEM & Strategy, Work-Life Balance, Inclusion Culture
+
+GUIDELINES:
+- NEVER describe companies with OSS=0 or Severity="N/A" as "transparent" - they have no data available
+- When ranking companies, exclude those with OSS=0 (no DNF available)
+- Answer questions based on the current filtered data shown above
+- Be specific with numbers, percentages, and company names
+- If data is insufficient, clearly state limitations
+- Suggest relevant visualizations when appropriate
+- Keep responses concise but informative (max 200 words)
+- Respond in the same language as the user (Italian or English)
+- Use markdown formatting for better readability"""
+
+        # Build messages for API
+        messages = [{"role": "system", "content": system_message}]
+        
+        # Add conversation history (limit to last 10 messages to avoid token limits)
+        if conversation_history:
+            messages.extend(conversation_history[-10:])
+        
+        # Add new user message
+        messages.append({"role": "user", "content": user_message})
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=800,
+                top_p=0.9
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            return f"Mi dispiace, si è verificato un errore: {str(e)}"
 
 
 if __name__ == "__main__":
