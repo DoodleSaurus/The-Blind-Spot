@@ -318,6 +318,7 @@ def load_data(file_patterns=None):
             full_kpi_rows.append(row_item)
         df_kpis = pd.DataFrame(full_kpi_rows)
         df_companies = df_companies.drop(columns=["kpi_data"])
+        df_companies = df_companies.drop_duplicates(subset=["Company", "Sector", "Type", "Year"], keep="first")
         return df_companies, df_kpis
     return pd.DataFrame(), pd.DataFrame()
 
