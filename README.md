@@ -37,6 +37,14 @@ While most analyses examine present data (pay gaps, STEM percentages, etc.), **T
 
 ## 🚀 Quick Start
 
+To run the project:
+
+```bash
+python start.py
+```
+
+Then open [http://127.0.0.1:8050](http://127.0.0.1:8050) in any browser to access the dashboard.
+
 ### Prerequisites
 - Python 3.8+
 - pip package manager
@@ -51,9 +59,6 @@ cd the-blind-spot
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Run the application
-python start.py
 ```
 
 ### Required Python Packages:
