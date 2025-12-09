@@ -37,13 +37,9 @@ While most analyses examine present data (pay gaps, STEM percentages, etc.), **T
 
 ## 🚀 Quick Start
 
-To run the project:
+Just double-click on `start.py` to launch the project.
 
-```bash
-python start.py
-```
-
-Then open [http://127.0.0.1:8050](http://127.0.0.1:8050) in any browser to access the dashboard.
+Then open [http://127.0.0.1:8050](http://127.0.0.1:8050) in any browser to view the dashboard.
 
 ### Prerequisites
 - Python 3.8+
@@ -148,7 +144,6 @@ OSS = Σ (Missing KPI Indicator × Weight)
 | 94-124 | 50.01-66.67% | Grave | Significant omissions |
 | 125-155 | 66.68-83.33% | Critica | Fundamental KPIs missing |
 | 156-185 | 83.34-100% | Estrema | Almost all critical areas omitted |
-
 
 The project includes entertaining elements:
 - **Animated Intro**: "Hacking" animation with humorous disclaimers
