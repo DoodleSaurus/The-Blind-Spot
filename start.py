@@ -104,7 +104,7 @@ def hacking_animation():
     typewriter("  ⚠️  DISCLAIMER: ANIMAZIONE DI HACKING PURAMENTE ESTETICA ⚠️", 0.02, "\033[93m")
     print("  Nessun vero hacking. Solo tastiera schiacciata e speranza.")
     print("  (L'unica cosa che stiamo penetrando è il tuo cuore ❤️ ...e snack 🍕)")
-    print("  Il nostro team legale dice: 'per favore non fate causa, siamo poveri'")
+    # print("  Il nostro team legale dice: 'per favore non fate causa, siamo poveri'")
     print("=" * 75)
     print("\033[0m")  # Reset colore
     time.sleep(1)
@@ -124,7 +124,7 @@ def hacking_animation():
         "Connessione al dark web (qualcuno ha dimenticato di pagare la bolletta)...",
         "Iniezione di codice h4x0r 1337 (copiato da Stack Overflow)...",
         "Compilazione caffè in codice (errore: caffeina insufficiente)...",
-        "Convincere l'AI che non siamo robot... BEEP BOOP CIOÈ UH CIAO UMANO ",
+        "Convincere l'AI che non siamo robot...",
         "Miglioramento risoluzione immagine... MIGLIORA! MIGLIORA DI PIÙ! ",
         "Upload virus all'astronave madre aliena (stile Independence Day)...",
         "Chiedere a ChatGPT di fare i nostri compiti...",
@@ -172,7 +172,7 @@ def hacking_animation():
     time.sleep(0.3)
     checks = [
         "✓ Forza password: 'password' (scelta eccellente!)",
-        "✓ Stato firewall: che cos'è un firewall? 🤷",
+        "✓ Stato firewall: che cos'è un firewall?",
         "✓ Antivirus: Norton scaduto nel 2003",
         "✓ VPN: connesso al WiFi del vicino",
         "✓ Crittografia: ROT13 (grado militare!)",
@@ -213,7 +213,6 @@ def hacking_animation():
     pulse_text("  🎉 HACK COMPLETATO! 🎉", 2)
     print("  (Scherzo, abbiamo letteralmente solo controllato i pacchetti Python)")
     print("  Il tuo computer è ora 420.69% più sicuro! (non proprio)")
-    print("  Achievement Sbloccato: 'Fatto finta di essere un hacker' 🏆")
     print("=" * 75 + "\033[0m\n")
     time.sleep(1.5)
     loading_spinner(3)
@@ -257,10 +256,10 @@ else:
     
     print("  (Nessuna pizza è stata maltrattata nella creazione di questo software)")
     print("  (Una paperella di gomma è stata consultata)")
-    print("  (Circa 47 caffè sono stati consumati)")
+    print("  (Circa 42 tazze di caffè sono stati consumati e 27 latine di Red Bull bevute)")
     print("  (Bug? Quali bug? Quelle sono funzionalità!)")
     print("  (100% Made in Bari e Casamassima con amore e confusione)")
-    print("  (Gesture italiane incluse gratuitamente)")
+    # print("  (Gesture italiane incluse gratuitamente)")
     print("=" * 75 + "\033[0m\n")
     
     loading_spinner(1.5)
