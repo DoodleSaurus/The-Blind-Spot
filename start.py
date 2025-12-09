@@ -10,8 +10,8 @@ def clear_console():
 
 def matrix_rain():
     """Breve animazione Matrix rain"""
-    chars = "01アイウエオカキクケコサシスセソタチツテト"
-    for _ in range(3):
+    chars = "010101010111100001111000011110000111100001111000011110000111101010101011110000111100001111000011110000111100001111000011110101010101111000011110000111100001111000011110000111100001111"
+    for _ in range(20):
         line = ''.join(random.choice(chars) for _ in range(40))
         print(f"\033[92m{line}\033[0m")
         time.sleep(0.1)
@@ -234,34 +234,52 @@ clear_console()
 
 if missing_packages:
     # Animazione di errore
-    glitch_text("!!! ERRORE RILEVATO !!!", 6)
-    print("\033[91m❌ OH NO!\033[0m")
+    glitch_text("!!! PACCHETTI MANCANTI RILEVATI !!!", 6)
+    print("\033[91m⚠️  ATTENZIONE!\033[0m")
     print("\033[93m Pacchetti mancanti:\033[0m")
     for pkg in missing_packages:
         typewriter(f"  {pkg}", 0.02, "\033[91m")
-    print("\n\033[96m Consiglio pro: pip install -r requirements.txt\033[0m")
-    print("\033[95m (oppure cercalo su Google e spera per il meglio)\033[0m")
-    print("\033[93m (o chiedi aiuto alla nonna, lei sa tutto)\033[0m\n")
-else:
-    # Celebrazione con animazioni
-    print("\033[92m" + "=" * 75)
-    pulse_text("  🎉 EVVIVA! Tutti i pacchetti richiesti sono installati! 🎉", 3)
     
-    # Countdown animato
-    print("\n\033[93m🚀 Lancio di analyzer.py in:\033[0m")
-    for i in range(3, 0, -1):
-        print(f"\r\033[96m   {i}...\033[0m", end='', flush=True)
-        time.sleep(0.5)
-    print("\r\033[92m   PARTENZA! 🚀\033[0m\n")
+    print("\n\033[96m🔧 Installazione automatica in corso...\033[0m")
+    loading_spinner(1)
     
-    print("  (Nessuna pizza è stata maltrattata nella creazione di questo software)")
-    print("  (Una paperella di gomma è stata consultata)")
-    print("  (Circa 42 tazze di caffè sono stati consumati e 27 latine di Red Bull bevute)")
-    print("  (Bug? Quali bug? Quelle sono funzionalità!)")
-    print("  (100% Made in Bari e Casamassima con amore e confusione)")
-    # print("  (Gesture italiane incluse gratuitamente)")
-    print("=" * 75 + "\033[0m\n")
-    
-    loading_spinner(1.5)
-    subprocess.run([sys.executable, 'analyzer.py'])
-    clear_console()
+    try:
+        # Installa i pacchetti mancanti
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'])
+        
+        print("\n\033[92m" + "=" * 75)
+        pulse_text("  ✅ INSTALLAZIONE COMPLETATA CON SUCCESSO! ✅", 3)
+        print("  Tutti i pacchetti sono ora installati!")
+        print("=" * 75 + "\033[0m\n")
+        loading_spinner(1.5)
+        clear_console()
+        
+    except subprocess.CalledProcessError:
+        print("\n\033[91m" + "=" * 75)
+        print("  ❌ ERRORE DURANTE L'INSTALLAZIONE!")
+        print("  Prova manualmente: pip install -r requirements.txt")
+        print("=" * 75 + "\033[0m\n")
+        sys.exit(1)
+
+# Celebrazione con animazioni
+print("\033[92m" + "=" * 75)
+pulse_text("  🎉 EVVIVA! Tutti i pacchetti richiesti sono installati! 🎉", 3)
+
+# Countdown animato
+print("\n\033[93m🚀 Lancio di analyzer.py in:\033[0m")
+for i in range(3, 0, -1):
+    print(f"\r\033[96m   {i}...\033[0m", end='', flush=True)
+    time.sleep(0.5)
+print("\r\033[92m   PARTENZA! 🚀\033[0m\n")
+
+print("  (Nessuna pizza è stata maltrattata nella creazione di questo software)")
+print("  (Una paperella di gomma è stata consultata)")
+print("  (Circa 42 tazze di caffè sono stati consumati e 27 latine di Red Bull bevute)")
+print("  (Bug? Quali bug? Quelle sono funzionalità!)")
+print("  (100% Made in Bari e Casamassima con amore e confusione)")
+# print("  (Gesture italiane incluse gratuitamente)")
+print("=" * 75 + "\033[0m\n")
+
+loading_spinner(1.5)
+subprocess.run([sys.executable, 'analyzer.py'])
+clear_console()
