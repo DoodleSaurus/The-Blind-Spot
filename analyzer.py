@@ -7,6 +7,11 @@ from dash import Dash, html, dcc, Input, Output, dash_table
 import dash_bootstrap_components as dbc
 import glob
 import os
+from rag_generator import BlindSpotRAG
+import base64
+import io
+from flask import send_file
+import uuid
 
 # App configuration
 external_stylesheets = [dbc.themes.FLATLY]
@@ -409,6 +414,30 @@ else:
     year_options = []
     type_options = []
 
+download_button = dbc.Card(dbc.CardBody([
+    html.Div("Export Report", style={"fontWeight": "700", "marginBottom": "16px"}),
+    html.Label("Generate Narrative Report"),
+    html.P("Download an AI-generated analysis based on filtered data", style={"fontSize": "0.85rem", "color": "#5b6475", "marginBottom": "12px"}),
+    dbc.Button("📄 Generate & Download Report", id="download-report-btn", color="success", className="w-100", style={"marginBottom": "8px"}),
+    dcc.Download(id="download-report-file"),
+    html.Div(id="report-status", style={"fontSize": "0.85rem", "color": "#0f766e", "marginTop": "8px", "textAlign": "center"})
+]), className="control-card", style={"marginTop": "16px"})
+
+download_report_section = html.Div([
+    html.Hr(style={"margin": "20px 0", "borderColor": "#e5e7eb"}),
+    html.Div("Export Report", style={"fontWeight": "700", "marginBottom": "12px", "color": "#0f766e"}),
+    html.P("Generate AI-powered narrative report", style={"fontSize": "0.8rem", "color": "#5b6475", "marginBottom": "10px"}),
+    dbc.Button("📄 Generate Report", id="download-report-btn", color="success", className="w-100", style={"marginBottom": "8px", "fontSize": "0.9rem"}),
+    dcc.Download(id="download-report-file"),
+    dbc.Spinner(
+        html.Div(id="report-status", style={"fontSize": "0.8rem", "color": "#0f766e", "marginTop": "8px", "textAlign": "center", "minHeight": "20px"}),
+        color="success",
+        type="grow",  # Options: "border", "grow"
+        size="sm",
+        spinner_style={"marginTop": "8px"}
+    )
+])
+
 controls = dbc.Card(dbc.CardBody([
     html.Div("Refine Results", style={"fontWeight": "700", "marginBottom": "16px"}),
     html.Label("Year"), dcc.Dropdown(id="year-filter", options=year_options, value=[], multi=True), html.Br(),
@@ -425,7 +454,8 @@ controls = dbc.Card(dbc.CardBody([
     ], value="severity-asc", clearable=False),
     html.Br(),
     dbc.Button("Reset Filters", id="reset-btn", color="primary", className="w-100"),
-    html.Div(id="reset-trigger", style={"display": "none"})
+    html.Div(id="reset-trigger", style={"display": "none"}),
+    download_report_section  
 ]), className="control-card")
 
 tabs = dcc.Tabs(id="main-tabs", value="tab-about", className="dash-tabs", children=[
@@ -1121,7 +1151,6 @@ def render_tab(tab, years, types, sectors, companies, severities, sortby):
             html.Hr(style={"margin": "20px 0", "borderColor": "#e5e7eb"}),
             dcc.Graph(figure=bar_fig, config={"displayModeBar": True}),
             html.Hr(style={"margin": "30px 0", "borderColor": "#e5e7eb"}),
-            html.H5("Top 10 Missing KPIs Summary", style={"fontWeight": "700", "marginBottom": "12px"}),
             rate_table,
             html.Hr(style={"margin": "30px 0", "borderColor": "#e5e7eb"}),
             dcc.Graph(figure=radar_fig, config={"displayModeBar": True}),
@@ -1388,6 +1417,93 @@ def render_tab(tab, years, types, sectors, companies, severities, sortby):
         return html.Div([cards, gap_text, dcc.Graph(figure=box, config={"displayModeBar": False})])
 
     return html.Div("Tab not implemented.", style={"color": "#777"})
+
+# ---------------------
+# Flask route
+# ---------------------
+@app.server.route('/download_pdf/<pdf_id>')
+def download_pdf(pdf_id):
+
+    if pdf_id in pdf_storage:
+        pdf_bytes = pdf_storage[pdf_id]
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"blind_spot_report_{timestamp}.pdf"
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    return "PDF not found", 404
+
+pdf_storage = {}
+
+@app.callback(
+    Output("download-report-file", "data"),
+    Output("report-status", "children"),
+    Input("download-report-btn", "n_clicks"),
+    Input("year-filter", "value"),
+    Input("type-filter", "value"),
+    Input("sector-filter", "value"),
+    Input("company-filter", "value"),
+    Input("severity-filter", "value"),
+    prevent_initial_call=True
+)
+def generate_and_download_report(n_clicks, years, types, sectors, companies, severities):
+    if n_clicks is None or n_clicks == 0:
+        return None, ""
+    
+    try:
+        df = companies_df.copy()
+        if years:
+            df = df[df["Year"].isin(years)]
+        if types:
+            df = df[df["Type"].isin(types)]
+        if sectors:
+            df = df[df["Sector"].isin(sectors)]
+        if companies:
+            df = df[df["Company"].isin(companies)]
+        if severities:
+            df = df[df["Severity"].isin(severities)]
+        
+        if df.empty:
+            return None, "❌ No data selected"
+        
+        rag = BlindSpotRAG()
+        
+        filters_info = {}
+        if years:
+            filters_info['years'] = years
+        if types:
+            filters_info['types'] = types
+        if sectors:
+            filters_info['sectors'] = sectors
+        if severities:
+            filters_info['severities'] = severities
+        
+        report_content = rag.generate_report(df, kpi_df=kpi_df, filters=filters_info)
+        
+        pdf_bytes = rag.export_report_to_pdf(report_content)
+        
+        pdf_id = str(uuid.uuid4())
+        pdf_storage[pdf_id] = pdf_bytes
+        
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"blind_spot_report_{timestamp}.pdf"
+        
+        pdf_base64 = base64.b64encode(pdf_bytes).decode()
+        
+        return dict(
+            content=pdf_base64,
+            filename=filename,
+            base64=True,
+            type="application/pdf"
+        ), f"✅ Report ready ({len(df)} cos.)"
+    
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return None, f"❌ Error: {str(e)[:50]}"
 
 # Reset callback
 @app.callback(
